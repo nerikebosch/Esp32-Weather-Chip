@@ -61,20 +61,20 @@ void FirebaseManager::pushHourlyHistory(AggregatedData data) {
 
     Serial.println("[DEBUG] Target Path: " + path);
     Serial.println("[DEBUG] JSON Payload: " + jsonStr);
-    Serial.println("[DEBUG] Sending request to Firebase...");
+    Serial.println("[DEBUG] Queuing request to Firebase...");
 
-    // Execute Push
-    bool status = Database.push<object_t>(aClient, path, object_t(jsonStr), result);
+    // Send to Firebase
+    Database.push<object_t>(aClient, path, object_t(jsonStr), result);
 
-    if (status) {
-        Serial.println("[SUCCESS] Hourly history pushed to Firebase successfully!");
+    // THE FIX: Use error() instead of lastError() or appError()
+    if (result.isError()) {
+        Serial.println("[ERROR] Failed to queue hourly history!");
+        Serial.printf("[ERROR Details] Code: %d | Msg: %s\n", 
+                      result.error().code(), 
+                      result.error().message().c_str());
     } else {
-        Serial.println("[ERROR] Failed to push hourly history!");
-        if (result.isError()) {
-            Serial.printf("[ERROR Details] Code: %d | Msg: %s\n", 
-                          result.appError().code(), 
-                          result.appError().message().c_str());
-        }
+        Serial.println("[SUCCESS] Hourly history queued for upload! (Async)");
     }
+    
     Serial.println("==================================================\n");
 }
