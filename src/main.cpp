@@ -94,20 +94,27 @@ void loop() {
             
             WeatherData currentData = sensors.getLiveReadings();
             
-            Serial.printf("[%s] TempIn: %.2fC | TempOut: %.2fC | Hum: %.2f%% | Pres: %.2fhPa | Lux: %.2f\n", 
+            // Increment counter and print current progress toward 60 minutes
+            minuteCounter++;
+
+            Serial.printf("[%s] TempIn: %.2fC | TempOut: %.2fC | Hum: %.2f%% | Lux: %.2f | Progress: [%d/60 min]\n", 
                            timeMgr.getTimeString().c_str(), 
                            currentData.temperature, currentData.tempOut, currentData.humidity, 
-                           currentData.pressure, currentData.lux);
+                           currentData.lux, minuteCounter);
                            
             firebase.updateLiveWeather(currentData);
             sensors.accumulateData(currentData);
 
-            minuteCounter++;
-
+            // Check for 60-minute mark
             if (minuteCounter >= 60) {
+                Serial.println("\n**************************************************");
+                Serial.println("[DEBUG] 60 Minutes reached! Triggering hourly push...");
+                Serial.println("**************************************************");
+
                 AggregatedData hourlyData = sensors.getHourlyAverageAndReset();
                 firebase.pushHourlyHistory(hourlyData);
-                minuteCounter = 0; 
+                
+                minuteCounter = 0; // Reset counter after pushing
             }
 
             digitalWrite(ONBOARD_LED, HIGH);
@@ -115,7 +122,7 @@ void loop() {
             digitalWrite(ONBOARD_LED, LOW);
 
         } else {
-            Serial.println("Wi-Fi disconnected. Attempting reconnect...");
+            Serial.println("[WARNING] Wi-Fi disconnected. Attempting reconnect...");
             digitalWrite(ONBOARD_LED, HIGH);
             wifi.begin();
             digitalWrite(ONBOARD_LED, LOW);

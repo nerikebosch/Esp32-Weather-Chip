@@ -33,7 +33,17 @@ void FirebaseManager::updateLiveWeather(WeatherData data) {
 }
 
 void FirebaseManager::pushHourlyHistory(AggregatedData data) {
-    // Appended avgTempOut, maxTempOut, and minTempOut
+    Serial.println("\n==================================================");
+    Serial.println("[DEBUG] FirebaseManager::pushHourlyHistory() Started");
+
+    // Check if time manager returns valid values
+    String timeStr = timeManager->getTimeString();
+    String dateStr = timeManager->getDateString();
+    unsigned long epochTime = timeManager->getEpochTime();
+
+    Serial.printf("[DEBUG] Timestamp: %lu | Date: %s | Time: %s\n", epochTime, dateStr.c_str(), timeStr.c_str());
+
+    // Build JSON String (includes timestamp!)
     String jsonStr = "{\"avgTemperature\":" + String(data.avgTemperature, 2) + 
                      ",\"avgTempOut\":" + String(data.avgTempOut, 2) + 
                      ",\"avgHumidity\":" + String(data.avgHumidity, 2) + 
@@ -44,10 +54,27 @@ void FirebaseManager::pushHourlyHistory(AggregatedData data) {
                      ",\"maxTempOut\":" + String(data.maxTempOut, 2) + 
                      ",\"minTempOut\":" + String(data.minTempOut, 2) + 
                      ",\"dataPointsCount\":" + String(data.dataPointsCount) + 
-                     ",\"timeString\":\"" + timeManager->getTimeString() + "\"}";
+                     ",\"timestamp\":" + String(epochTime) + 
+                     ",\"timeString\":\"" + timeStr + "\"}";
 
-    String path = "/weather/history/hourly/" + timeManager->getDateString();
+    String path = "/weather/history/hourly/" + dateStr;
 
-    Database.push<object_t>(aClient, path, object_t(jsonStr), result);
-    Serial.println("Hourly history pushed to Firebase at: " + path);
+    Serial.println("[DEBUG] Target Path: " + path);
+    Serial.println("[DEBUG] JSON Payload: " + jsonStr);
+    Serial.println("[DEBUG] Sending request to Firebase...");
+
+    // Execute Push
+    bool status = Database.push<object_t>(aClient, path, object_t(jsonStr), result);
+
+    if (status) {
+        Serial.println("[SUCCESS] Hourly history pushed to Firebase successfully!");
+    } else {
+        Serial.println("[ERROR] Failed to push hourly history!");
+        if (result.isError()) {
+            Serial.printf("[ERROR Details] Code: %d | Msg: %s\n", 
+                          result.appError().code(), 
+                          result.appError().message().c_str());
+        }
+    }
+    Serial.println("==================================================\n");
 }
