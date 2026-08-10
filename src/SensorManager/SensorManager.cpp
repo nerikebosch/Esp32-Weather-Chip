@@ -1,17 +1,28 @@
 #include "SensorManager.h"
+#include <OneWire.h>
+#include <DallasTemperature.h>
 
-SensorManager::SensorManager() : oneWire(ONE_WIRE_BUS), ds18b20(&oneWire) {
+// --- Safely declare the DS18B20 outside the class ---
+#define ONE_WIRE_BUS 4
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature ds18b20(&oneWire);
+// ----------------------------------------------------
+
+SensorManager::SensorManager() {
     resetAccumulators();
 }
 
 bool SensorManager::begin() {
+    // Start I2C bus (ESP32 defaults: SDA = 21, SCL = 22)
     Wire.begin();
 
+    // 1. Initialize BME280
     if (!bme.begin(0x76)) {
         Serial.println("Error: BME280 sensor not found!");
         return false;
     }
 
+    // 2. Initialize VEML7700
     if (!veml.begin()) {
         Serial.println("Error: VEML7700 sensor not found!");
         return false;
@@ -21,8 +32,9 @@ bool SensorManager::begin() {
     veml.setIntegrationTime(VEML7700_IT_100MS);
     veml.interruptEnable(false);
 
+    // 3. Initialize the DS18B20
     ds18b20.begin();
-    
+
     Serial.println("Sensors initialized successfully.");
     return true;
 }
@@ -32,10 +44,10 @@ WeatherData SensorManager::getLiveReadings() {
     
     data.temperature = bme.readTemperature();
     data.humidity = bme.readHumidity();
-    data.pressure = bme.readPressure() / 100.0F; 
+    data.pressure = bme.readPressure() / 100.0F; // Convert Pa to hPa
     data.lux = veml.readLux();
 
-    // Fetch the new Outside Temperature
+    // Get Outside Temperature
     ds18b20.requestTemperatures(); 
     data.tempOut = ds18b20.getTempCByIndex(0); 
 
@@ -51,11 +63,10 @@ void SensorManager::accumulateData(WeatherData currentData) {
     sumLux += currentData.lux;
     readingCount++;
 
-    // Track extremes for Inside Temp
+    // Track extremes
     if (currentData.temperature > maxTemp) maxTemp = currentData.temperature;
     if (currentData.temperature < minTemp) minTemp = currentData.temperature;
 
-    // Track extremes for Outside Temp
     if (currentData.tempOut > maxTempOut) maxTempOut = currentData.tempOut;
     if (currentData.tempOut < minTempOut) minTempOut = currentData.tempOut;
 }
@@ -63,6 +74,7 @@ void SensorManager::accumulateData(WeatherData currentData) {
 AggregatedData SensorManager::getHourlyAverageAndReset() {
     AggregatedData result;
 
+    // Prevent division by zero
     if (readingCount == 0) {
         result = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
         return result;
@@ -83,6 +95,7 @@ AggregatedData SensorManager::getHourlyAverageAndReset() {
     
     result.dataPointsCount = readingCount;
 
+    // Reset everything for the next hour
     resetAccumulators();
 
     return result;

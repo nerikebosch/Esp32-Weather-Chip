@@ -2,6 +2,8 @@
 #include "Config.h"
 
 bool WifiManager::begin() {
+    WiFi.persistent(false);
+    WiFi.setSleep(false);
     Serial.print("Connecting to Wi-Fi: ");
     Serial.println(WIFI_SSID);
 
